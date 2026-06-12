@@ -1,0 +1,339 @@
+---
+title: "Adventure_Works"
+format: html
+editor: visual
+---
+
+## Automatización con Quarto
+
+## Carga de datos
+
+En esta fase se cargan las tablas principales del dataset AdventureWorks, incluyendo la información de ventas, pedidos y productos:
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+library(readxl)
+library(dplyr)
+
+AdventureWorks <- read_excel("Borrador/AdventureWorks.xlsx")
+View(AdventureWorks)
+datos2 <- read_excel("Borrador/AdventureWorks.xlsx", 
+    sheet = "Sales Order_data")
+datos3 <- read_excel("Borrador/AdventureWorks.xlsx", 
+    sheet = "Product_data")
+
+
+datos <- AdventureWorks
+```
+
+## Integración y transformación de datos
+
+Tras la carga de las tablas principales, se integraron las fuentes de información mediante la clave *SalesOrderLineKey*. Posteriormente se generaron variables derivadas para facilitar el análisis de los canales de venta y la rentabilidad de las operaciones.
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+datos3 <- merge(datos, datos2, by='SalesOrderLineKey')
+datos4 <- datos3 %>%
+  mutate(Codificado=ifelse(Channel=="Reseller", 1, 0))%>%
+  mutate(Margen=`Sales Amount` - `Total Product Cost`)
+summary(datos4$Margen)
+table(datos4$Channel)
+```
+
+Se integraron las distintas fuentes de información y se generaron nuevas variables de análisis. En particular, se creó la variable Margen para evaluar la rentabilidad de las ventas y una variable de codificación del canal de venta para facilitar los análisis posteriores.
+
+## Análisis exploratorio
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+library(corrplot)
+
+correlaciones <- c(
+  cor(datos4$Codificado, datos4$`Order Quantity`),
+  cor(datos4$Codificado, datos4$`Unit Price`),
+  cor(datos4$Codificado, datos4$`Sales Amount`),
+  cor(datos4$Codificado, datos4$Margen)
+)
+
+data.frame(
+  Variable = c(
+    "Order Quantity",
+    "Unit Price",
+    "Sales Amount",
+    "Margen"
+  ),
+  Correlacion = correlaciones
+)
+
+datos_corr <- datos4 %>%
+  select(
+    Codificado,
+    `Order Quantity`,
+    `Unit Price`,
+    `Sales Amount`,
+    Margen
+  )
+
+corrplot(
+  cor(datos_corr),
+  method = "color",
+  tl.col = "black"
+)
+par(mfrow=c(2,2))
+
+boxplot(datos4$Margen,
+        main="Margen")
+
+boxplot(datos4$`Order Quantity`,
+        main="Cantidad")
+
+boxplot(datos4$`Unit Price`,
+        main="Precio Unitario")
+
+boxplot(datos4$`Sales Amount`,
+        main="Ventas")
+```
+
+Se realizó un análisis exploratorio inicial con el objetivo de identificar relaciones entre el canal de venta y las principales variables comerciales. Para ello se calcularon correlaciones y se analizaron posibles valores atípicos mediante diagramas de caja. Los resultados muestran que la relación entre el canal de venta y las variables analizadas es limitada, lo que sugiere que existen otros factores que influyen en el comportamiento comercial. Los diagramas de caja permitieron identificar la presencia de valores extremos, especialmente en las variables de ventas y margen, habituales en entornos comerciales con productos de elevado valor económico.
+
+## Forecasting de ventas
+
+Con el objetivo de analizar la evolución temporal de las ventas, se transformó la fecha de pedido a formato Date y se agregaron las ventas por meses. Posteriormente se generaron dos series independientes correspondientes a los canales Reseller e Internet.
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+library(lubridate)
+library(ggplot2)
+library(forecast)
+
+ventas_reseller <- datos4 %>%
+  filter(Codificado == 1)
+
+ventas_reseller$Fecha <- ymd(ventas_reseller$OrderDateKey)
+
+ventas_reseller$Mes <- floor_date(
+  ventas_reseller$Fecha,
+  "month"
+)
+
+datos_reseller <- ventas_reseller %>%
+  group_by(Mes) %>%
+  summarise(
+    Ventas = sum(`Sales Amount`, na.rm = TRUE)
+  )
+
+ventas_online <- datos4 %>%
+  filter(Codificado == 0)
+
+ventas_online$Fecha <- ymd(ventas_online$OrderDateKey)
+
+ventas_online$Mes <- floor_date(
+  ventas_online$Fecha,
+  "month"
+)
+
+datos_online <- ventas_online %>%
+  group_by(Mes) %>%
+  summarise(
+    Ventas = sum(`Sales Amount`, na.rm = TRUE)
+  )
+ggplot(datos_reseller,
+       aes(Mes, Ventas)) +
+  geom_line() +
+  labs(
+    title = "Evolución mensual de ventas - Reseller"
+  )
+
+ggplot(datos_online,
+       aes(Mes, Ventas)) +
+  geom_line() +
+  labs(
+    title = "Evolución mensual de ventas - Online"
+  )
+ventas_reseller_ts <- ts(
+  datos_reseller$Ventas,
+  frequency = 12
+)
+
+ventas_online_ts <- ts(
+  datos_online$Ventas,
+  frequency = 12
+)
+
+modelo_arima_reseller <- auto.arima(
+  ventas_reseller_ts
+)
+
+forecast_reseller <- forecast(
+  modelo_arima_reseller,
+  h = 6
+)
+
+autoplot(forecast_reseller) +
+  ggtitle("Predicción de ventas - Canal Reseller")
+modelo_arima_online <- auto.arima(
+  ventas_online_ts
+)
+
+forecast_online <- forecast(
+  modelo_arima_online,
+  h = 6
+)
+
+autoplot(forecast_online) +
+  ggtitle("Predicción de ventas - Canal Online")
+
+
+
+```
+
+## Clustering
+
+Con el objetivo de identificar patrones de comportamiento en los canales de venta, se aplicó una técnica de segmentación basada en el algoritmo K-means.
+
+Se evaluó el número óptimo de clusters mediante el método WSS y se seleccionó una solución de tres grupos por proporcionar un equilibrio adecuado entre simplicidad interpretativa y reducción de la variabilidad interna. Se clusterizan los productos según su comportamiento en ambos canales, segmentando por las variables:
+
+-   Ventas Reseller, Unidades Reseller, Margen Reseller
+
+-   Ventas Online, Unidades Online, Margen Online
+
+Por lo tanto, se obtienen 6 dimensiones diferentes que es necesario reducir con PCA. A continuación, el resumen estadístico de las 6 dimensiones obtenidas y el gráfico resultante de la ejecución de WSS:
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+library(factoextra)
+
+dataset_product <- read_excel("Borrador/AdventureWorks.xlsx", 
+    sheet = "Product_data")
+
+dataset_full <- merge(datos4, dataset_product, by = 'ProductKey') %>% 
+  mutate(across(where(is.character), as.factor))
+
+reseller <- dataset_full %>%
+  filter(Channel == 'Reseller') %>%
+  group_by(ProductKey, Category) %>% 
+  summarise(
+    Total_Ventas = sum(`Sales Amount`, na.rm = TRUE),
+    Total_unidades = sum(`Order Quantity`, na.rm = TRUE),
+    Margen_medio = mean(Margen, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+online <- dataset_full %>%
+  filter(Channel == 'Internet') %>%
+  group_by(ProductKey, Category) %>%
+  summarise(
+    Total_Ventas = sum(`Sales Amount`, na.rm = TRUE),
+    Total_unidades = sum(`Order Quantity`, na.rm = TRUE),
+    Margen_medio = mean(Margen, na.rm = TRUE),
+    .groups = 'drop'
+  )
+
+producto_canal <- reseller %>% full_join(online, by = c('ProductKey', 'Category'))
+
+producto_canal <- producto_canal %>%
+  rename(
+    Ventas_Reseller = Total_Ventas.x,
+    Unidades_Reseller = Total_unidades.x,
+    Margen_Reseller = Margen_medio.x,
+    Ventas_Online = Total_Ventas.y,
+    Unidades_Online = Total_unidades.y,
+    Margen_Online = Margen_medio.y
+  )
+
+
+producto_canal[is.na(producto_canal)] <- 0 
+
+data_clustering <- producto_canal %>%
+  select(Ventas_Reseller, Unidades_Reseller, Margen_Reseller, Ventas_Online, Unidades_Online, Margen_Online)
+summary(data_clustering)
+
+# Normalizar
+data_scaled <- scale(data_clustering)
+
+
+fviz_nbclust(data_scaled, kmeans, method = "wss")
+
+
+set.seed(123)
+kmeans_final <- kmeans(data_scaled, centers = 3, nstart = 25)
+
+producto_canal$Cluster <- as.factor(kmeans_final$cluster)
+
+
+pca_result <- prcomp(data_scaled)
+
+pca_2d <- as.data.frame(pca_result$x[, 1:2])
+
+pca_2d$Cluster <- producto_canal$Cluster
+
+
+```
+
+Los resultados obtenidos muestran la existencia de tres segmentos diferenciados en cada canal de venta.
+
+En el canal Reseller se observan grupos con elevados volúmenes de ventas asociados a márgenes reducidos o negativos, mientras que otros segmentos presentan menor volumen pero una rentabilidad superior.
+
+Por su parte, el canal Online presenta un segmento claramente rentable con elevados márgenes, junto a otros grupos caracterizados por operaciones de menor importe económico.
+
+Estos resultados evidencian diferencias relevantes en el comportamiento de ambos canales y permiten identificar oportunidades de optimización comercial.
+
+```{r}
+#| warning: false
+#| message: false
+#| echo: false
+library(ggplot2)
+
+centroides <- pca_2d %>%
+  group_by(Cluster) %>%
+  summarise(PC1 = mean(PC1), PC2 = mean(PC2))
+
+ggplot(pca_2d, aes(x = PC1, y = PC2, color = Cluster)) +
+  geom_point(size = 2) +
+  geom_point(data = centroides, aes(x = PC1, y = PC2, color = Cluster), 
+             size = 6, shape = 8, color = 'black') +
+  theme_minimal() +
+  labs(title = 'Clustering de productos por comportamiento en canal')
+```
+
+Las representaciones gráficas muestran una diferenciación clara entre los grupos identificados por el algoritmo K-means. Existen tres segmentos diferenciados de productos en función de su comportamiento en los canales Reseller e Internet.
+
+La segmentación considera simultáneamente variables de ventas, unidades vendidas y margen medio en ambos canales, permitiendo identificar grupos de productos con patrones comerciales similares.
+
+Estos resultados evidencian diferencias relevantes en el desempeño de los productos entre canales y proporcionan información útil para apoyar decisiones de optimización comercial y segmentación de estrategias de venta. Se identifican los siguientes segmentos:
+
+-   **Cluster 1 (rojo):** 50 productos de precio alto con margen bajo o negativo. Pertenece exclusivamente a bicicletas. Mencionar que este cluster tiene margen negativo en Reseller, pero bastante alto e Internet.
+
+-   **Cluster 2 (verde):** 31 productos de ventas de bajo precio y margen alto en el canal Internet (54,90%) pero medio en Reseller (16,42%). Presencia en clothing y accessories.
+
+-   **Cluster 3 (azul):** 269 productos de precio medio, con margen alto en el canal Internet y bajo en el canal Reseller, presentes en las 4 categorías.
+
+## Resultados
+
+El análisis realizado ha permitido identificar diferencias significativas entre los canales de venta Internet y Reseller.
+
+El estudio temporal mostró comportamientos diferenciados en la evolución de las ventas de ambos canales, permitiendo generar predicciones a corto plazo mediante modelos ARIMA. Estas predicciones facilitan la planificación comercial y la anticipación de tendencias futuras.
+
+Por otra parte, la aplicación del algoritmo K-means permitió identificar tres segmentos diferenciados de productos a partir de su comportamiento comercial en los canales Reseller e Internet. Los resultados evidenciaron la existencia de grupos de productos con patrones diferenciados y permitiendo eidentificar diferencias importantes en cuanto a volumen de ventas y rentabilidad entre canales.
+
+La combinación de técnicas predictivas y de segmentación ha permitido obtener una visión más completa del comportamiento comercial de AdventureWorks.
+
+## Conclusiones
+
+El proyecto ha permitido aplicar técnicas avanzadas de análisis de datos, visualización y automatización sobre el dataset AdventureWorks, obteniendo información relevante para la toma de decisiones empresariales.
+
+Los resultados muestran que el canal Online presenta un comportamiento más rentable que el canal Reseller, especialmente en determinados segmentos identificados mediante clustering. Asimismo, el análisis predictivo ha permitido estimar la evolución futura de las ventas, proporcionando una herramienta adicional de apoyo a la planificación comercial.
+
+Se implementó un flujo reproducible mediante Quarto y R que permite regenerar automáticamente el informe completo a partir del dataset AdventureWorks. Cada ejecución actualiza las transformaciones, el análisis exploratorio, las predicciones ARIMA, la segmentación mediante clustering y las visualizaciones incluidas en el documento.
+
+En conjunto, la combinación de análisis exploratorio, segmentación, predicción y visualización avanzada ha permitido transformar los datos en conocimiento útil para apoyar la estrategia comercial de la organización.
