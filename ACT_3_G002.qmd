@@ -18,7 +18,7 @@ library(readxl)
 library(dplyr)
 
 AdventureWorks <- read_excel("AdventureWorks.xlsx")
-View(AdventureWorks)
+
 datos2 <- read_excel("AdventureWorks.xlsx", sheet = "Sales Order_data")
 datos3 <- read_excel("AdventureWorks.xlsx", sheet = "Product_data")
 
