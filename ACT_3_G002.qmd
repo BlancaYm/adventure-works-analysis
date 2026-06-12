@@ -17,12 +17,10 @@ En esta fase se cargan las tablas principales del dataset AdventureWorks, incluy
 library(readxl)
 library(dplyr)
 
-AdventureWorks <- read_excel("Borrador/AdventureWorks.xlsx")
+AdventureWorks <- read_excel("AdventureWorks.xlsx")
 View(AdventureWorks)
-datos2 <- read_excel("Borrador/AdventureWorks.xlsx", 
-    sheet = "Sales Order_data")
-datos3 <- read_excel("Borrador/AdventureWorks.xlsx", 
-    sheet = "Product_data")
+datos2 <- read_excel("AdventureWorks.xlsx", sheet = "Sales Order_data")
+datos3 <- read_excel("AdventureWorks.xlsx", sheet = "Product_data")
 
 
 datos <- AdventureWorks
@@ -213,8 +211,7 @@ Por lo tanto, se obtienen 6 dimensiones diferentes que es necesario reducir con 
 #| echo: false
 library(factoextra)
 
-dataset_product <- read_excel("Borrador/AdventureWorks.xlsx", 
-    sheet = "Product_data")
+dataset_product <- read_excel("AdventureWorks.xlsx", sheet = "Product_data")
 
 dataset_full <- merge(datos4, dataset_product, by = 'ProductKey') %>% 
   mutate(across(where(is.character), as.factor))
