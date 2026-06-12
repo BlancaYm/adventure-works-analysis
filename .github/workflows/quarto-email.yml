@@ -1,4 +1,5 @@
-name: Ejecutar Quarto y enviar email
+¡Claro! Aquí está completo y actualizado para Gmail:
+yamlname: Ejecutar Quarto y enviar email
 
 on:
   schedule:
@@ -23,23 +24,26 @@ jobs:
           curl -LO https://github.com/quarto-dev/quarto-cli/releases/download/v1.3.450/quarto-1.3.450-linux-amd64.deb
           sudo dpkg -i quarto-1.3.450-linux-amd64.deb
       
-      - name: Verificar instalación
-        run: |
-          Rscript -e "library('rmarkdown'); print('rmarkdown OK')"
-          quarto --version
-      
       - name: Renderizar Quarto
         run: quarto render ACT_3_G002.qmd --to html
       
       - name: Enviar email
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.office365.com
-          server_port: 587
+          server_address: smtp.gmail.com
+          server_port: 465
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "📊 Informe Adventure Works"
+          subject: "📊 Informe Adventure Works - Semanal"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_USER }}
-          body: "Informe generado automáticamente"
+          body: |
+            Hola,
+            
+            Se adjunta el informe automatizado de Adventure Works.
+            
+            Generado automáticamente cada lunes.
+            
+            Saludos,
+            Sistema de automatización
           attachments: ACT_3_G002.html
