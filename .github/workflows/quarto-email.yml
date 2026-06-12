@@ -15,25 +15,14 @@ jobs:
       - name: Instalar R
         uses: r-lib/setup-r@v2
       
-      - name: Instalar dependencias R
-        run: |
-          install.packages(c("readxl", "dplyr", "ggplot2", "forecast", "factoextra", "corrplot", "lubridate"))
-        shell: Rscript {0}
-      
-      - name: Instalar Quarto
-        uses: quarto-dev/setup-quarto@v2
-      
-      - name: Renderizar Quarto a HTML
-        run: quarto render Adventure_Works.qmd --to html
-      
       - name: Enviar email con HTML
         uses: dawidd6/action-send-mail@v3
         with:
-          server_address: smtp.gmail.com
-          server_port: 465
+          server_address: smtp.office365.com
+          server_port: 587
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "Informe Adventure Works - Semanal"
+          subject: "📊 Informe Adventure Works - Semanal"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_USER }}
           body: |
