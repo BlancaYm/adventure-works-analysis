@@ -19,7 +19,7 @@ jobs:
       
       - name: Instalar paquetes R
         run: |
-          sudo Rscript -e "install.packages(c('readxl', 'dplyr', 'ggplot2', 'forecast', 'factoextra', 'corrplot', 'lubridate'), repos='http://cran.rstudio.com/')"
+          sudo Rscript -e "install.packages(c('rmarkdown', 'readxl', 'dplyr', 'ggplot2', 'forecast', 'factoextra', 'corrplot', 'lubridate'), repos='http://cran.rstudio.com/')"
       
       - name: Instalar Quarto
         run: |
