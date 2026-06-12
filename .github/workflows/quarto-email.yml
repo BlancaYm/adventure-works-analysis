@@ -1,5 +1,4 @@
-¡Claro! Aquí está completo y actualizado para Gmail:
-yamlname: Ejecutar Quarto y enviar email
+name: Ejecutar Quarto y enviar email
 
 on:
   schedule:
