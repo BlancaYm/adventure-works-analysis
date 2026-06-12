@@ -2,7 +2,7 @@ name: Ejecutar Quarto y enviar email
 
 on:
   schedule:
-    - cron: '0 9 * * 1'  # Cada lunes a las 9 AM
+    - cron: '0 9 * * 1'
   workflow_dispatch:
 
 jobs:
@@ -10,43 +10,40 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       
-      - name: Instalar R
+      - name: Instalar dependencias del sistema
         run: |
           sudo apt-get update
-          sudo apt-get install -y r-base r-base-dev
+          sudo apt-get install -y r-base r-base-dev curl
       
-      - name: Instalar dependencias R
+      - name: Instalar paquetes R
         run: |
-          Rscript -e "install.packages(c('readxl', 'dplyr', 'ggplot2', 'forecast', 'factoextra', 'corrplot', 'lubridate'))"
+          Rscript -e "install.packages('readxl', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('dplyr', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('ggplot2', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('forecast', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('factoextra', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('corrplot', repos='http://cran.rstudio.com/')"
+          Rscript -e "install.packages('lubridate', repos='http://cran.rstudio.com/')"
       
       - name: Instalar Quarto
         run: |
-          sudo apt-get install -y curl
           curl -LO https://github.com/quarto-dev/quarto-cli/releases/download/v1.3.450/quarto-1.3.450-linux-amd64.deb
           sudo dpkg -i quarto-1.3.450-linux-amd64.deb
       
-      - name: Renderizar Quarto a HTML
+      - name: Renderizar Quarto
         run: quarto render Adventure_Works.qmd --to html
       
-      - name: Enviar email con HTML
+      - name: Enviar email
         uses: dawidd6/action-send-mail@v3
         with:
           server_address: smtp.office365.com
           server_port: 587
           username: ${{ secrets.EMAIL_USER }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "📊 Informe Adventure Works - Semanal"
+          subject: "📊 Informe Adventure Works"
           to: ${{ secrets.EMAIL_TO }}
           from: ${{ secrets.EMAIL_USER }}
-          body: |
-            Hola,
-            
-            Se adjunta el informe automatizado de Adventure Works.
-            
-            Generado automáticamente cada lunes.
-            
-            Saludos,
-            Sistema de automatización
+          body: "Informe generado automáticamente"
           attachments: Adventure_Works.html
