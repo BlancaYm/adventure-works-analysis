@@ -35,7 +35,7 @@ jobs:
           password: ${{ secrets.EMAIL_PASSWORD }}
           subject: "📊 Informe Adventure Works - Semanal"
           to: ${{ secrets.EMAIL_TO }}
-          from: ${{ secrets.EMAIL_USER }}
+          from: 
           body: |
             Hola,
             
